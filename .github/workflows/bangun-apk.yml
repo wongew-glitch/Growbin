@@ -1,0 +1,55 @@
+name: Bangun APK Rumpun
+
+on: [push, workflow_dispatch]
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Buka paket proyek dari zip
+        run: |
+          Z=$(ls *.zip | head -1)
+          echo "Membuka $Z"
+          unzip -o "$Z" -d proyek
+          ls -la proyek
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Buat kunci penandatangan
+        working-directory: proyek
+        run: |
+          keytool -genkeypair -v -keystore rumpun.keystore -storetype PKCS12 \
+            -alias rumpun -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass rumpun123 -keypass rumpun123 \
+            -dname "CN=Rumpun, O=Tugas Kuliah, L=Tangerang Selatan, ST=Banten, C=ID"
+
+      - name: Bangun APK
+        working-directory: proyek
+        run: gradle assembleDebug assembleRelease --no-daemon --stacktrace
+
+      - name: Kumpulkan hasil
+        if: always()
+        run: |
+          mkdir -p keluaran
+          cp proyek/app/build/outputs/apk/release/app-release.apk keluaran/Rumpun.apk || true
+          cp proyek/app/build/outputs/apk/debug/app-debug.apk keluaran/Rumpun-uji-coba.apk || true
+          cp proyek/rumpun.keystore keluaran/ || true
+          ls -la keluaran
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Rumpun-APK
+          path: keluaran/
+          if-no-files-found: error
